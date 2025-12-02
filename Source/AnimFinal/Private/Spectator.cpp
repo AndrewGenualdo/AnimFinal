@@ -26,7 +26,7 @@ void ASpectator::Test() const
 	{
 		PlayerController->SetInputMode(FInputModeGameAndUI());
 		PlayerController->SetShowMouseCursor(true);
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::White, TEXT("This is an Example on-screen debug message."));
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::White, TEXT("Interesting"));
 	}
 
 	
