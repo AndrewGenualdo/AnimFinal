@@ -7,6 +7,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Components/PoseableMeshComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 // Sets default values
 ADummy::ADummy()
 {
@@ -43,33 +44,41 @@ void ADummy::Tick(float DeltaTime)
 	if (!InitialPositions.IsEmpty() && ElapseTime < duration)
 	{
 			ElapseTime += DeltaTime;
+			currentLoopTime += DeltaTime;
 			float Alpha = FMath::Clamp(ElapseTime / duration, 0.0f, 1.0f);
-
+			FVector TargetRootLoc = TargetMesh->GetBoneLocation(TEXT("root"), EBoneSpaces::ComponentSpace);
 			for (int32 boneIndex = 0; boneIndex < PoseableMesh->GetNumBones(); ++boneIndex)
 			{
 				FName BoneName = PoseableMesh->GetBoneName(boneIndex);
+				FName TargetBoneName = TargetMesh->GetBoneName(boneIndex);
 				FTransform NewTransform;
-				NewTransform.SetLocation(FMath::Lerp(InitialPositions[boneIndex].GetLocation(), TargetMesh->GetBoneLocation(BoneName,EBoneSpaces::ComponentSpace), Alpha));
+				NewTransform.SetLocation(FMath::Lerp(InitialPositions[boneIndex].GetLocation(), TargetMesh->GetBoneLocation(BoneName,EBoneSpaces::ComponentSpace) - TargetRootLoc, Alpha));
 				NewTransform.SetRotation(FQuat::Slerp(InitialPositions[boneIndex].GetRotation(), TargetMesh->GetBoneRotationByName(BoneName,EBoneSpaces::ComponentSpace).Quaternion(), Alpha));
 				NewTransform.SetScale3D(FMath::Lerp(InitialPositions[boneIndex].GetScale3D(), TargetMesh->GetBoneScaleByName(BoneName, EBoneSpaces::ComponentSpace), Alpha));
 				UE_LOG(LogTemp, Warning, TEXT("Target Rotation %f %f %f"),NewTransform.GetLocation().X, NewTransform.GetLocation().Y, NewTransform.GetLocation().Z);
-
 				PoseableMesh->SetBoneTransformByName(BoneName, NewTransform, EBoneSpaces::ComponentSpace);
 			}
+			GetCharacterMovement()->MaxWalkSpeed = CurrentSpeed;
+			AddMovementInput(EndingSpot);
 			if (Alpha == 1.0f)
 			{
 				UE_LOG(LogTemp, Warning, TEXT("AnimationDone"));
+				animationIndex++;
+				if (!finalTransition)
+				PlayAnimation();
 			}
 	}
 
 }
 
-void ADummy::SetNewPose(FString NextPose,float newDuration)
+void ADummy::SetNewPose(FString NextPose,float newDuration,FVector EndLocation,float speed)
 {
 	LoadSkeletonPosition(TargetMesh, NextPose);
 	duration = newDuration;
 	ElapseTime = 0;
 	InitialPositions.Empty();
+	EndingSpot = EndLocation;
+	CurrentSpeed = speed;
 	for (int32 boneIndex = 0; boneIndex <= PoseableMesh->GetNumBones(); ++boneIndex)
 	{
 		FTransform BoneT;
@@ -80,6 +89,52 @@ void ADummy::SetNewPose(FString NextPose,float newDuration)
 		InitialPositions.Add(BoneT);
 	}
 }
+
+void ADummy::PlayAnimation()
+{
+	if (AnimationFiles.IsEmpty() || Durations.IsEmpty() || Locations.IsEmpty() || Speeds.IsEmpty())
+		return;
+
+	if (animationIndex < AnimationFiles.Num())
+	{
+		SetNewPose(AnimationFiles[animationIndex], Durations[animationIndex],Locations[animationIndex],Speeds[animationIndex]);
+	}
+	else
+	{
+		animationIndex = 0;
+		if (isLooping && loopDuration > currentLoopTime)
+		{
+			SetNewPose(AnimationFiles[animationIndex], Durations[animationIndex],Locations[animationIndex],Speeds[animationIndex]);
+		}
+		else
+		{
+			currentLoopTime = 0;
+			finalTransition = true;
+			SetNewPose(IdlePositions, 0.25, FVector(0, 0, 0), 0);
+		}
+	}
+}
+
+void ADummy::SetAnimationFile(TArray<FString> Files, TArray<float> durations, TArray<FVector> MovementVector, TArray<float> Speed, bool loop, float lDuration)
+{
+	if (Files.Num() != durations.Num() || Files.Num() != MovementVector.Num() || Files.Num() != Speed.Num()) return;
+
+	AnimationFiles.Empty();
+	Durations.Empty();
+	finalTransition = false;
+	for (int32 i = 0; i < Files.Num(); ++i)
+	{
+		AnimationFiles.Add(Files[i]);
+		Durations.Add(durations[i]);
+		Locations.Add(MovementVector[i]);
+		Speeds.Add(Speed[i]);
+	}
+
+	isLooping = loop;
+	loopDuration = lDuration;
+}
+
+
 
 //https://www.youtube.com/watch?v=YcTa_wMjCzY (For reading and writing files in UE5)
 void ADummy::RecordPosition(USkeletalMeshComponent* SkeletalMeshComp,FString SaveDirectory) const
@@ -117,6 +172,12 @@ void ADummy::RecordPosition(USkeletalMeshComponent* SkeletalMeshComp,FString Sav
 	}
 	else
 		UE_LOG(LogTemp, Warning, TEXT("Success"));
+}
+
+void ADummy::InitSkeleton(FString SaveDirectory)
+{
+	LoadSkeletonPosition(PoseableMesh, SaveDirectory);
+	IdlePositions = SaveDirectory;
 }
 
 void ADummy::LoadSkeletonPosition(UPoseableMeshComponent* SkeletalMeshComp, FString File)
