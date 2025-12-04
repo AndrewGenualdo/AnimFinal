@@ -19,20 +19,28 @@ public:
 	ADummy();
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UPoseableMeshComponent* PoseableMesh;
+	TArray<FTransform> InitialPositions;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UPoseableMeshComponent* TargetMesh;
+	float duration = 0;
+	float ElapseTime = 0;
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 	UFUNCTION(BlueprintCallable, Category = Setup)
 	virtual void RecordPosition(USkeletalMeshComponent* SkeletalMeshComp,FString SaveDirectory) const;
 	UFUNCTION(BlueprintCallable, Category = Setup)
-	virtual void LoadSkeletonPosition(UPoseableMeshComponent* SkeletalMeshComp, FString SaveDirectory) const;
-
+	virtual void LoadSkeletonPosition(UPoseableMeshComponent* SkeletalMeshComp, FString SaveDirectory);
+	virtual bool IsNewTarget(UPoseableMeshComponent* SkelMeshComp) const;
 
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
-
+	UFUNCTION(BlueprintCallable, Category = Movement)
+	virtual void SetNewPose(FString NextPose,float duration);
 	// Called to bind functionality to input
+	 FString  CheckFile(FString File) const;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
 
 };
