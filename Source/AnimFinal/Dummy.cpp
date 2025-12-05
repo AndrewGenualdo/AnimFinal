@@ -59,7 +59,25 @@ void ADummy::Tick(float DeltaTime)
 				PoseableMesh->SetBoneTransformByName(BoneName, NewTransform, EBoneSpaces::ComponentSpace);
 			}
 			GetCharacterMovement()->MaxWalkSpeed = CurrentSpeed;
-			AddMovementInput(EndingSpot);
+
+	
+			if (EndingSpot.Z > 0)
+			{
+				GetCharacterMovement()->JumpZVelocity = EndingSpot.Z;
+				if (EndingSpot.X > 0 || EndingSpot.Y > 0)
+				{
+					LaunchCharacter(EndingSpot,true,true);
+				}
+				else
+				{
+					Jump();
+				}
+
+			}
+			else
+			{
+				AddMovementInput(EndingSpot);
+			}
 			if (Alpha == 1.0f)
 			{
 				UE_LOG(LogTemp, Warning, TEXT("AnimationDone"));
@@ -115,12 +133,18 @@ void ADummy::PlayAnimation()
 	}
 }
 
-void ADummy::SetAnimationFile(TArray<FString> Files, TArray<float> durations, TArray<FVector> MovementVector, TArray<float> Speed, bool loop, float lDuration)
+void ADummy::SetAnimationFile(TArray<FString> Files, TArray<float> durations, const TArray<FVector> MovementVector, TArray<float> Speed, bool loop, float lDuration)
 {
-	if (Files.Num() != durations.Num() || Files.Num() != MovementVector.Num() || Files.Num() != Speed.Num()) return;
+	if (Files.Num() != durations.Num() || Files.Num() != MovementVector.Num() || Files.Num() != Speed.Num())
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("FAIL"));
+		return;
+	}
 
 	AnimationFiles.Empty();
 	Durations.Empty();
+	Locations.Empty();
+	Speeds.Empty();
 	finalTransition = false;
 	for (int32 i = 0; i < Files.Num(); ++i)
 	{
